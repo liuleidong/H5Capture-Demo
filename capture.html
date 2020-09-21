@@ -1,0 +1,163 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+    <title>WebRTC</title>
+    <!--引入CSS-->
+    <link rel="stylesheet" type="text/css" href="Webuploader/webuploader.css">
+    <!--引入JS-->
+    <script type="text/javascript" src="./jq.sr.js"></script>
+    <script type="text/javascript" src="./Webuploader/webuploader2.js"></script>
+</head>
+
+<body >
+<!--
+    <div id="uploader-demo">
+        <!--用来存放item-->
+        <div id="fileList" class="uploader-list"></div>
+        <div id="filePicker">选择图片</div>
+    </div>
+-->
+<div  style="width: 100%; position: fixed; left: 0; bottom: 0; top: 0; right: 0;">
+    <img src="cover.png" style="width: 100%; height: 100%; position: fixed; left: 0; bottom: 0; top: 0; right: 0;"  />
+    <button id="snap" style="width: 50px; height: 50px; background: #fff; box-shadow: 0 0  5px #fff; border-radius: 50px; position: fixed; bottom: 20px; left: 50%; margin-left: -25px;" ></button>
+
+    <video ></video>
+    <canvas id="mycanvas"></canvas>
+
+</div>
+
+
+<script>
+
+    var uploader = WebUploader.create({
+
+        auto: true,
+
+        // swf文件路径
+        swf: './Webuploader/Uploader.swf',
+
+        // 文件接收服务端。
+        server: 'https://192.168.5.110/capture/upload.php',
+
+        // 只允许选择图片文件。
+        accept: {
+            title: 'Images',
+            extensions: 'gif,jpg,jpeg,bmp,png',
+            mimeTypes: 'image/*'
+        }
+
+    });
+
+    // 文件上传过程中创建进度条实时显示。
+    uploader.on( 'uploadProgress', function( file, percentage ) {
+        var $li = $( '#'+file.id ),
+            $percent = $li.find('.progress span');
+
+        // 避免重复创建
+        if ( !$percent.length ) {
+            $percent = $('<p class="progress"><span></span></p>')
+                    .appendTo( $li )
+                    .find('span');
+        }
+
+        $percent.css( 'width', percentage * 100 + '%' );
+    });
+
+    // 文件上传成功，给item添加成功class, 用样式标记上传成功。
+    uploader.on( 'uploadSuccess', function( file ) {
+        $( '#'+file.id ).addClass('upload-state-done');
+    });
+
+    // 文件上传失败，显示上传出错。
+    uploader.on( 'uploadError', function( file ) {
+        var $li = $( '#'+file.id ),
+            $error = $li.find('div.error');
+
+        // 避免重复创建
+        if ( !$error.length ) {
+            $error = $('<div class="error"></div>').appendTo( $li );
+        }
+
+        $error.text('上传失败');
+    });
+
+    // 完成上传完了，成功或者失败，先删除进度条。
+    uploader.on( 'uploadComplete', function( file ) {
+        $( '#'+file.id ).find('.progress').remove();
+    });
+
+  // 注意本例需要在HTTPS协议网站中运行，新版本Chrome中getUserMedia接口在http下不再支持。
+// 设置事件监听器
+window.addEventListener("DOMContentLoaded", function() {
+    var snap = document.querySelector('#snap');
+    if(snap !== null){
+        snap.onclick=function(){
+            var canvas = document.querySelector('#mycanvas');
+            var ctx = canvas.getContext('2d');
+            var video = document.querySelector('video');
+            canvas.width = video.videoWidth;
+            canvas.height = video.videoHeight;
+            canvas.getContext('2d').drawImage(video,0,0);
+            canvas.toBlob(function(blob){
+                var runtimeForRuid = new WebUploader.Runtime.Runtime();
+                console.log(runtimeForRuid.uid);
+                blob.name = runtimeForRuid.uid;
+                var myFile = new WebUploader.Lib.File(runtimeForRuid.uid,blob);
+                var wuFile = new WebUploader.File(myFile);
+                uploader.addFile(wuFile);
+            });
+           
+            //var myFile = new File(myBlob,"snap.png");
+            
+        }
+    }
+
+    // 老的浏览器可能根本没有实现 mediaDevices，所以我们可以先设置一个空的对象
+    if (navigator.mediaDevices === undefined) {
+        navigator.mediaDevices = {};
+        alert('1');
+    }
+
+    // 一些浏览器部分支持 mediaDevices。我们不能直接给对象设置 getUserMedia 
+    // 因为这样可能会覆盖已有的属性。这里我们只会在没有getUserMedia属性的时候添加它。
+    if (navigator.mediaDevices.getUserMedia === undefined) {
+		navigator.mediaDevices.getUserMedia = function(constraints) {
+            alert('2');
+			// 首先，如果有getUserMedia的话，就获得它
+			var getUserMedia = navigator.getUserMedia ||navigator.webkitGetUserMedia || navigator.mozGetUserMedia;
+
+			// 一些浏览器根本没实现它 - 那么就返回一个error到promise的reject来保持一个统一的接口
+			if (!getUserMedia) {
+			    return Promise.reject(new Error('getUserMedia is not implemented in this browser'));
+			}
+
+			// 否则，为老的navigator.getUserMedia方法包裹一个Promise
+			return new Promise(function(resolve, reject) {
+			    getUserMedia.call(navigator, constraints, resolve, reject);
+			});
+		}
+    }
+    
+    var constraints = { audio: false, video: true }; 
+    
+    navigator.mediaDevices.getUserMedia(constraints)
+    .then(function(stream){
+        var video = document.querySelector('video');
+        // 旧的浏览器可能没有srcObject
+        if ("srcObject" in video) {
+            video.srcObject = stream;
+        } else {
+            // 防止在新的浏览器里使用它，应为它已经不再支持了
+            video.src = window.URL.createObjectURL(stream);
+        }
+        video.onloadedmetadata = function(e) {
+            video.play();
+        };
+    })
+    .catch(function(err){alert(err.name + ": " + err.message); });
+}, false);
+</script>
+</body>
+</html>
